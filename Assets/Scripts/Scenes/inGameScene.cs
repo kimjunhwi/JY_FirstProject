@@ -4,7 +4,7 @@ using UnityEngine;
 using ReadOnlys;
 using UnityEngine.UI;
 
-public class inGameScene : MonoBehaviour
+public class inGameScene : Scene
 {
     bool isGameOver;
 
@@ -28,13 +28,30 @@ public class inGameScene : MonoBehaviour
 
     void Awake()
     {
-        Init();
-
         Red_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_RED));
         Blue_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_BLUE));
         Green_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_GREEN));
+    }
 
-        retryButton.onClick.AddListener( () => Retry());
+    public override void Init(UIManager _uiManager)
+    {
+        base.Init(_uiManager);
+
+        normalBlockObjectPool.PreloadPool();
+
+        gameObject.SetActive(false);
+    }
+
+    public override void Show()
+    {
+        base.Show();
+
+        GameInit();
+    }
+
+    public override void Hide()
+    {
+        base.Hide();
     }
 
     void Update()
@@ -59,10 +76,29 @@ public class inGameScene : MonoBehaviour
 #endif
     }
 
-    void Retry()
+     void GameInit()
     {
-        Init();
-        retryButton.gameObject.SetActive(false);
+        nFloorCount = 0;
+        nBlockCount = 0;
+
+        Block_List.Clear();
+
+        isGameOver = false;
+
+        BlockInit();
+    }
+
+    void BlockInit()
+    {
+        while(Block_List.Count != 0)
+        {
+            normalBlockObjectPool.ReturnObject(Block_List[0].gameObject);
+            Block_List.RemoveAt(0);
+        }
+
+        BlocksSetting();
+
+        Block_List.Find((block) => block.GetBlockData().nFloorIndex == nFloorCount).SetBlockColor(E_BLOCK_COLOR_TYPE.E_NONE);
     }
 
     void ClickButton(E_BLOCK_COLOR_TYPE _colorType)
@@ -82,39 +118,42 @@ public class inGameScene : MonoBehaviour
             break;
             case E_CHECK_BLOCK.E_FAILED:
             {
+#if CHEAT
+                checkBlock.SetBlockColor(E_BLOCK_COLOR_TYPE.E_NONE);
+                NextStair();
+#endif
                 isGameOver = true;
-                retryButton.gameObject.SetActive(true);
+
+                CWindowResultPopup.CWindowResultData data = new CWindowResultPopup.CWindowResultData();
+
+                //임시
+                data.strTitle   = "Result";
+                data.strOk      = "Lobby";
+                data.strCancle  = "Restart";
+                data.strScoreValue = nFloorCount.ToString();
+
+                GameManager.Instance.Window_ResultPopup(data, (result) =>
+                {
+                    switch(result)
+                    {
+                        case (int)CWindowResultPopup.E_WINDOW_RESULT.E_LOBBY:
+                        {
+                            uiManager.ShowScene(this,E_GAME_SCENE.E_LOBBY);
+                        }
+                        break;
+                        case (int)CWindowResultPopup.E_WINDOW_RESULT.E_RESTART:
+                        {
+                            GameInit();
+                        }
+                        break;
+                    }
+                });
             }
             break;
         }
     }
 
-    public void Init()
-    {
-        nFloorCount = 0;
-        nBlockCount = 0;
-
-        while(Block_List.Count != 0)
-        {
-            normalBlockObjectPool.ReturnObject(Block_List[0].gameObject);
-            Block_List.RemoveAt(0);
-        }
-
-        Block_List.Clear();
-
-        isGameOver = false;
-
-        normalBlockObjectPool.PreloadPool();
-        //나중에 확정으로 수정해야 되는 부분
-        retryButton.gameObject.SetActive(false);
-
-        SettingBlocks();
-
-        Block_List.Find((block) => block.GetBlockData().nFloorIndex == nFloorCount).SetBlockColor(E_BLOCK_COLOR_TYPE.E_NONE);
-    }
-
-
-    public void SettingBlocks()
+    public void BlocksSetting()
     {
         while(Block_List.Count <= nMaxBasicBlock)
         {
@@ -205,7 +244,7 @@ public class inGameScene : MonoBehaviour
 
                 Block_List.RemoveAt(0);
                 normalBlockObjectPool.ReturnObject(obj);
-                SettingBlocks();
+                BlocksSetting();
             }
         }
 

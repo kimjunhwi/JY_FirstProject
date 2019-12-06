@@ -30,4 +30,11 @@ namespace ReadOnlys
 
 	#endregion
 
+
+	public enum E_GAME_SCENE
+	{
+		E_LOBBY,
+		E_IN_GAME,
+	}
+
 }
