@@ -11,9 +11,9 @@ public class inGameScene : Scene
     public Button Red_Button;
     public Button Blue_Button;
     public Button Green_Button;
-
-    //나중에 수정 
-    public Button retryButton;
+    public Camera playerCamera;
+    public GameObject playerObject;
+    public GameObject TouchStartTextObject; 
 
     [SerializeField]
     List<Block> Block_List = new List<Block>();
@@ -22,12 +22,20 @@ public class inGameScene : Scene
     int nBlockCount = 0;
     const int nMaxBasicBlock = 20;
 
+    Vector3 vecOffset = new Vector3(0,0, - 10);
+
+    float fPlusHp = 1;
+    float fCurrentHp = 0;
+    const float fMaxHp = 10;
+    public Slider sliderTimer;
+
     //나중에 리스트로 추가
     public SimpleObjectPool normalBlockObjectPool;
     public SimpleObjectPool countBlockObjectPool;
 
     void Awake()
     {
+        playerCamera = Camera.main;
         Red_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_RED));
         Blue_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_BLUE));
         Green_Button.onClick.AddListener(() => ClickButton(E_BLOCK_COLOR_TYPE.E_GREEN));
@@ -39,6 +47,7 @@ public class inGameScene : Scene
 
         normalBlockObjectPool.PreloadPool();
 
+        playerObject.SetActive(false);
         gameObject.SetActive(false);
     }
 
@@ -51,6 +60,8 @@ public class inGameScene : Scene
 
     public override void Hide()
     {
+        gameObject.SetActive(false);
+
         base.Hide();
     }
 
@@ -72,8 +83,15 @@ public class inGameScene : Scene
     {
         ClickButton(E_BLOCK_COLOR_TYPE.E_GREEN);
     }
-
 #endif
+        if(isGameOver == true)
+            return;
+
+        Vector3 desiredPosition = playerObject.transform.position + vecOffset;
+
+        playerCamera.transform.position = Vector3.Lerp(playerCamera.transform.position, desiredPosition, 0.125f);
+    
+        sliderTimer.value -= Time.deltaTime + (float)((nFloorCount % 10) * 0.0001);
     }
 
      void GameInit()
@@ -81,30 +99,51 @@ public class inGameScene : Scene
         nFloorCount = 0;
         nBlockCount = 0;
 
-        Block_List.Clear();
+        fCurrentHp = fMaxHp;
+        sliderTimer.maxValue = fMaxHp;
+        sliderTimer.value = fMaxHp;
 
-        isGameOver = false;
+        isGameOver = true;
 
         BlockInit();
-    }
 
+        playerObject.SetActive(true);
+        TouchStartTextObject.SetActive(true);
+    }
+    
     void BlockInit()
     {
-        while(Block_List.Count != 0)
-        {
-            normalBlockObjectPool.ReturnObject(Block_List[0].gameObject);
-            Block_List.RemoveAt(0);
-        }
+        BlocksClear();
 
         BlocksSetting();
 
         Block_List.Find((block) => block.GetBlockData().nFloorIndex == nFloorCount).SetBlockColor(E_BLOCK_COLOR_TYPE.E_NONE);
     }
 
+    void BlocksClear()
+    {
+        while(Block_List.Count != 0)
+        {
+            GameObject block = Block_List[0].gameObject;
+            normalBlockObjectPool.ReturnObject(block);
+            Block_List.RemoveAt(0);
+            block.SetActive(false);
+        }
+
+        Block_List.Clear();
+    }
+
     void ClickButton(E_BLOCK_COLOR_TYPE _colorType)
     {
-        if(Block_List.Count < 0 || isGameOver)
+        if(Block_List.Count < 0)
             return;
+
+        if(TouchStartTextObject.activeSelf && isGameOver)
+        {
+            isGameOver = false;
+            TouchStartTextObject.SetActive(false);
+        }
+
 
         Block checkBlock = Block_List.Find(( (list) => list.GetBlockData().nFloorIndex == nFloorCount + 1));
 
@@ -112,8 +151,12 @@ public class inGameScene : Scene
         {
             case E_CHECK_BLOCK.E_SUCCESS:
             {
+                sliderTimer.value += 1;
+                
                 checkBlock.SetBlockColor(E_BLOCK_COLOR_TYPE.E_NONE);
                 NextStair();
+
+                
             }
             break;
             case E_CHECK_BLOCK.E_FAILED:
@@ -138,6 +181,7 @@ public class inGameScene : Scene
                     {
                         case (int)CWindowResultPopup.E_WINDOW_RESULT.E_LOBBY:
                         {
+                            BlocksClear();
                             uiManager.ShowScene(this,E_GAME_SCENE.E_LOBBY);
                         }
                         break;
@@ -222,23 +266,20 @@ public class inGameScene : Scene
     {
         bool isNextStairRight = Block_List.Find((block) => block.GetBlockData().nFloorIndex == nFloorCount + 1).GetBlockData().isRight;
         
-        for(int nIndex = 0; nIndex < Block_List.Count; nIndex++)
+        if(isNextStairRight)
         {
-            if(isNextStairRight)
-            {
-                Block_List[nIndex].transform.position = 
-                    new Vector2(Block_List[nIndex].transform.position.x - 1, Block_List[nIndex].transform.position.y - 0.5f);
-            }
-            else
-            {
-                Block_List[nIndex].transform.position = 
-                    new Vector2(Block_List[nIndex].transform.position.x + 1, Block_List[nIndex].transform.position.y - 0.5f);
-            }
+            playerObject.transform.position =
+                new Vector2(playerObject.transform.position.x + 1, playerObject.transform.position.y + 0.5f);
+        }
+        else
+        {
+            playerObject.transform.position =
+                new Vector2(playerObject.transform.position.x - 1, playerObject.transform.position.y + 0.5f);
         }
 
         if(Block_List.Count != 0)
         {
-            if(Block_List[0].transform.position.y <- 4.8f)
+            if(Vector3.Distance(playerObject.transform.position,Block_List[0].transform.position) > 5)
             {
                 GameObject obj = Block_List[0].gameObject;
 
